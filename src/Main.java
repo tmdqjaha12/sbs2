@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
@@ -85,6 +86,7 @@ class DBConnection {
 		}
 	}
 
+/////////////////////////
 	public int selectRowIntValue(String sql) {
 		Map<String, Object> row = selectRow(sql);
 
@@ -129,9 +131,10 @@ class DBConnection {
 			return rows.get(0);
 		}
 
-		return new HashMap<>();
+		return null;
 	}
 
+/////////////////////////
 	public List<Map<String, Object>> selectRows(String sql) {
 		// SQL을 적는 문서파일
 		Statement statement = null;
@@ -159,6 +162,8 @@ class DBConnection {
 				}
 				// list에 저장
 				rows.add(row);
+
+//				System.out.println(row.toString());
 			}
 		} catch (SQLException e) {
 			System.err.printf("[SELECT 쿼리 오류, %s]\n" + e.getStackTrace() + "\n", sql);
@@ -200,7 +205,7 @@ class DBConnection {
 		} catch (SQLException e) {
 			System.err.println("[UPDATE 종료 오류]\n" + e.getStackTrace());
 		}
-		
+
 		return affectedRows;
 	}
 
@@ -234,7 +239,6 @@ class DBConnection {
 		} catch (SQLException e) {
 			System.err.println("[INSERT 종료 오류]\n" + e.getStackTrace());
 		}
-
 		return id;
 	}
 
@@ -353,14 +357,17 @@ class App {
 		initControllers();
 
 		Factory.getDBConnection().connect();
-
+		
+		//초기 아티클 &보드 만들기
+		//이건 그냥 sql에서 직접 설정하는게 맞다.
+		
 		// 관리자 회원 생성
 		Factory.getMemberService().join("admin", "admin", "관리자");
 
 		// 공지사항 게시판 생성
-		Factory.getArticleService().makeBoard("공지시항", "notice");
+		Factory.getArticleService().makeBoard("공지시항", 1);
 		// 자유 게시판 생성
-		Factory.getArticleService().makeBoard("자유게시판", "free");
+		Factory.getArticleService().makeBoard("자유게시판", 2);
 
 		// 현재 게시판을 1번 게시판으로 선택
 		Factory.getSession().setCurrentBoard(Factory.getArticleService().getBoard(1));
@@ -495,17 +502,56 @@ class ArticleController extends Controller {
 			actionModify(reqeust);
 		} else if (reqeust.getActionName().equals("delete")) {
 			actionDelete(reqeust);
+		} else if (reqeust.getActionName().equals("changeBoard")) {
+			actionChangeBoard(reqeust);
+		} else if (reqeust.getActionName().equals("detail")) {
+			actionDetail(reqeust);
 		}
 	}
 
+	// 게시판 상세보기
+	private void actionDetail(Request reqeust) {
+		if (reqeust.getArg1() != null) {
+			String articleId = reqeust.getArg1();
+
+			Article isArticle = articleService.getArticle(Integer.parseInt(articleId));
+
+			if (isArticle == null) {
+				System.out.println("없는글 입니다");
+			} else {
+				System.out.printf("== {%s 게시판 글} ==\n", articleService.getBoard(isArticle.getBoardId()).getName());
+				System.out.printf("제목 : %s\n", isArticle.getTitle());
+				System.out.printf("내용 : %s\n", isArticle.getBody());
+				System.out.printf("작성시간 : %s\n", isArticle.getRegDate());
+			}
+		}
+	}
+
+	// 게시판 이동
+	private void actionChangeBoard(Request reqeust) {
+		if (reqeust.getArg1() != null) {
+			String boardId = reqeust.getArg1();
+
+			Board isBoard = Factory.getArticleService().moveBoard(boardId);
+
+			if (isBoard == null) {
+				System.out.println("존재하지 않는 게시판 입니다.");
+			} else {
+				Factory.getSession().setCurrentBoard(isBoard);
+				System.out.printf("{%s}게시판으로 이동 하였습니다\n", isBoard.getName());
+			}
+		}
+	}
+
+	// 게시물 삭제
 	private void actionDelete(Request reqeust) {
-		if(reqeust.getArg1() != null) {
+		if (reqeust.getArg1() != null) {
 			System.out.println("== 게시물 삭제 ==");
 			int id = Integer.parseInt(reqeust.getArg1());
 
 			int newId = articleService.delete(id);
-			
-			if(newId == 0) {
+
+			if (newId == 0) {
 				System.out.println("없는 글입니다.");
 			} else {
 				System.out.printf("%d번 글이 삭제되었습니다.\n", newId);
@@ -513,8 +559,9 @@ class ArticleController extends Controller {
 		}
 	}
 
+	// 게시물 수정
 	private void actionModify(Request reqeust) {
-		if(reqeust.getArg1() != null) {
+		if (reqeust.getArg1() != null) {
 			System.out.println("== 게시물 수정 ==");
 			int id = Integer.parseInt(reqeust.getArg1());
 			String title = "";
@@ -539,15 +586,15 @@ class ArticleController extends Controller {
 
 				break;
 			}
-			
-			// 현재 게시판 id 가져오기
-			int boardId = Factory.getSession().getCurrentBoard().getId();
+
+			// 게시물 해당 게시판 id 가져오기
+			int boardId = articleService.getArticle(Integer.parseInt(reqeust.getArg1())).getBoardId();
 
 			// 현재 로그인한 회원의 id 가져오기
 			int memberId = Factory.getSession().getLoginedMember().getId();
 			int newId = articleService.modify(boardId, memberId, title, body, id);
 
-			if(newId == 0) {
+			if (newId == 0) {
 				System.out.println("없는 글입니다.");
 			} else {
 				System.out.printf("%d번 글이 수정되었습니다.\n", newId);
@@ -555,6 +602,7 @@ class ArticleController extends Controller {
 		}
 	}
 
+	// 게시물리스트
 	private void actionList(Request reqeust) {
 		List<Article> articles = articleService.getArticles();
 
@@ -565,6 +613,7 @@ class ArticleController extends Controller {
 		System.out.println("== 게시물 리스트 끝 ==");
 	}
 
+	// 글쓰기
 	private void actionWrite(Request reqeust) {
 		System.out.printf("제목 : ");
 		String title = Factory.getScanner().nextLine();
@@ -572,7 +621,7 @@ class ArticleController extends Controller {
 		String body = Factory.getScanner().nextLine();
 
 		// 현재 게시판 id 가져오기
-		int boardId = Factory.getSession().getCurrentBoard().getId();
+		int boardId = Factory.getSession().getCurrentBoard().getCode();
 
 		// 현재 로그인한 회원의 id 가져오기
 		int memberId = Factory.getSession().getLoginedMember().getId();
@@ -673,8 +722,20 @@ class BuildService {
 	}
 
 	public void buildSite() {
+		//계속 덮어씌워지는 현상... site자체를 지우고 다시 만드는 방식도 있지 않을까...
 		Util.makeDir("site");
 		Util.makeDir("site/article");
+		Util.makeDir("site/home");
+		Util.makeDir("site/stat");
+		Util.makeDir("site/resource");
+
+		String css = Util.getFileContents("site_template/resource/common.css");
+		String js = Util.getFileContents("site_template/resource/common.js");
+		String log = Util.getFileContents("site_template/resource/log.html");
+		String home = Util.getFileContents("site_template/home/index.html");
+		String stat = Util.getFileContents("site_template/stat/index.html");
+		Util.writeFileContents("site/resource/common.css", css);
+		Util.writeFileContents("site/resource/common.js", js);
 
 		String head = Util.getFileContents("site_template/part/head.html");
 		String foot = Util.getFileContents("site_template/part/foot.html");
@@ -682,7 +743,27 @@ class BuildService {
 		// 각 게시판 별 게시물리스트 페이지 생성
 		List<Board> boards = articleService.getBoards();
 
+		String middle = "";
 		for (Board board : boards) {
+			String fileLink = board.getCode() + "-list-1.html";
+			int fileName = board.getCode();
+			middle += "<li><a href=\"../article/" + fileLink + "\">" + fileName + "</a></li>";
+		}
+		home = home.replace("${LI}", middle);
+		stat = stat.replace("${LI}", middle);
+		Util.writeFileContents("site/home/index.html", home);
+		Util.writeFileContents("site/stat/index.html", stat);
+
+		middle = "";	
+		for(Board board : boards) {
+			String fileLink = board.getCode() + "-list-1.html";
+			int fileName = board.getCode();
+			middle += "<li><a href=\"" + fileLink + "\">" + fileName + "</a></li>";
+		}
+		
+		for (Board board : boards) {
+			head = Util.getFileContents("site_template/part/head.html");
+			foot = Util.getFileContents("site_template/part/foot.html");
 			String fileName = board.getCode() + "-list-1.html";
 
 			String html = "";
@@ -691,16 +772,24 @@ class BuildService {
 
 			String template = Util.getFileContents("site_template/article/list.html");
 
+			int count = 0;
 			for (Article article : articles) {
+//				Member member = memberService.getMember(article.getMemberId());
+				
+				count++;
 				html += "<tr>";
-				html += "<td>" + article.getId() + "</td>";
+				html += "<td>" + count + "</td>";
+//				html += "<td>" + article.getId() + "</td>";
 				html += "<td>" + article.getRegDate() + "</td>";
+				html += "<td>" + "미설정" + "</td>";
 				html += "<td><a href=\"" + article.getId() + ".html\">" + article.getTitle() + "</a></td>";
 				html += "</tr>";
 			}
 
 			html = template.replace("${TR}", html);
-
+			
+			head = head.replace("${LI}", middle);
+			
 			html = head + html + foot;
 
 			Util.writeFileContents("site/article/" + fileName, html);
@@ -714,6 +803,7 @@ class BuildService {
 
 			html += "<div>제목 : " + article.getTitle() + "</div>";
 			html += "<div>내용 : " + article.getBody() + "</div>";
+			html += "<div>내용 : " + article.getRegDate() + "</div>";
 			html += "<div><a href=\"" + (article.getId() - 1) + ".html\">이전글</a></div>";
 			html += "<div><a href=\"" + (article.getId() + 1) + ".html\">다음글</a></div>";
 
@@ -732,7 +822,7 @@ class ArticleService {
 		articleDao = Factory.getArticleDao();
 	}
 
-	public List<Article> getArticlesByBoardCode(String code) {
+	public List<Article> getArticlesByBoardCode(int code) {
 		return articleDao.getArticlesByBoardCode(code);
 	}
 
@@ -740,36 +830,50 @@ class ArticleService {
 		return articleDao.getBoards();
 	}
 
-	public int makeBoard(String name, String code) {
-		Board oldBoard = articleDao.getBoardByCode(code);
-
-		if (oldBoard != null) {
-			return -1;
-		}
-
-		Board board = new Board(name, code);
-		return articleDao.saveBoard(board);
+	// 게시판 이동
+	public Board moveBoard(String boardId) {
+		return articleDao.getBoard(Integer.parseInt(boardId));
 	}
 
+	// 게시판 생성
+	public void makeBoard(String name, int id) {
+
+		if (articleDao.getBoard(id) == null) {
+			Board board = new Board(name, id);
+			articleDao.saveBoard(board);
+		}
+
+	}
+
+	// id로 board 가져오기
 	public Board getBoard(int id) {
 		return articleDao.getBoard(id);
 	}
-	//글삭제
+
+	// id로 article 가져오기
+	public Article getArticle(int id) {
+		return articleDao.getArticle(id);
+	}
+
+	// 글삭제
 	public int delete(int id) {
 		return articleDao.delete(id);
 	}
-	//글수정
+
+	// 글수정
 	public int modify(int boardId, int memberId, String title, String body, int id) {
 		Article article = new Article(boardId, memberId, title, body);
 		article.setId(id);
 		return articleDao.modify(article);
 	}
-	//글쓰기
+
+	// 글쓰기
 	public int write(int boardId, int memberId, String title, String body) {
 		Article article = new Article(boardId, memberId, title, body);
 		return articleDao.save(article);
 	}
 
+	// 글리스트
 	public List<Article> getArticles() {
 		return articleDao.getArticles();
 	}
@@ -813,32 +917,59 @@ class ArticleDao {
 		dbConnection = Factory.getDBConnection();
 	}
 
-	public List<Article> getArticlesByBoardCode(String code) {
-		return db.getArticlesByBoardCode(code);
+	public List<Article> getArticlesByBoardCode(int id) {
+		String sql = "SELECT * FROM article WHERE boardId = " + id + " ORDER BY boardId DESC";
+		List<Map<String, Object>> rows = dbConnection.selectRows(sql);
+
+		List<Article> articles = new ArrayList<>();
+
+		for (Map<String, Object> row : rows) {
+			articles.add(new Article(row));
+		}
+
+		return articles;
 	}
 
 	public List<Board> getBoards() {
-		return db.getBoards();
+		List<Map<String, Object>> rows = dbConnection.selectRows("SELECT * FROM board ORDER by boardId DESC");
+		List<Board> boards = new ArrayList<>();
+
+		for (Map<String, Object> row : rows) {
+			boards.add(new Board(row));
+		}
+
+		return boards;
 	}
 
-	public Board getBoardByCode(String code) {
-		return db.getBoardByCode(code);
-	}
+	// return db.getArticles();
 
+//	public Board getBoardByCode(String code) {
+//		
+//		return db.getBoardByCode(code);
+//	}
+
+	// 게시판 생성
 	public int saveBoard(Board board) {
-		return db.saveBoard(board);
+		String sql = "";
+		sql += "INSERT INTO board ";
+		sql += String.format("SET boardId = '%d'", board.getCode());
+		sql += String.format(", boardName = '%s'", board.getName());
+
+		return dbConnection.insert(sql);
 	}
-	//글 삭제
+
+	// 글 삭제
 	public int delete(int id) {
 		String sql = "";
 		sql += "DELETE FROM article ";
 		sql += String.format("WHERE id = '%d'", id);
-		if(dbConnection.update(sql) == 0) {
+		if (dbConnection.update(sql) == 0) {
 			return 0;
 		}
 		return id;
 	}
-	//수정 저장
+
+	// 수정 저장
 	public int modify(Article article) {
 		String sql = "";
 		sql += "UPDATE article ";
@@ -848,12 +979,13 @@ class ArticleDao {
 		sql += String.format(", memberId = '%d'", article.getMemberId());
 		sql += String.format(", boardId = '%d'", article.getBoardId());
 		sql += String.format(" WHERE id = '%d'", article.getId());
-		if(dbConnection.update(sql) == 0) {
+		if (dbConnection.update(sql) == 0) {
 			return 0;
 		}
 		return article.getId();
 	}
-	//새글 저장
+
+	// 새글 저장
 	public int save(Article article) {
 		String sql = "";
 		sql += "INSERT INTO article ";
@@ -866,10 +998,27 @@ class ArticleDao {
 		return dbConnection.insert(sql);
 	}
 
+	// id로 board 가져오기
 	public Board getBoard(int id) {
-		return db.getBoard(id);
+		String sql = "SELECT * FROM board WHERE boardId = " + id;
+		if (dbConnection.selectRow(sql) != null) {
+			Board board = new Board(dbConnection.selectRow(sql));
+			return board;
+		}
+		return null;
 	}
 
+	// id로 article 가져오기
+	public Article getArticle(int id) {
+		String sql = "SELECT * FROM article WHERE id = " + id;
+		if (dbConnection.selectRow(sql) != null) {
+			Article article = new Article(dbConnection.selectRow(sql));
+			return article;
+		}
+		return null;
+	}
+
+	// 게시물리스트
 	public List<Article> getArticles() {
 		List<Map<String, Object>> rows = dbConnection.selectRows("SELECT * FROM article ORDER by id DESC");
 		List<Article> articles = new ArrayList<>();
@@ -924,22 +1073,22 @@ class DB {
 		tables.put("member", new Table<Member>(Member.class, dbDirPath));
 	}
 
-	public List<Article> getArticlesByBoardCode(String code) {
-		Board board = getBoardByCode(code);
-		// free => 2
-		// notice => 1
-
-		List<Article> articles = getArticles();
-		List<Article> newArticles = new ArrayList<>();
-
-		for (Article article : articles) {
-			if (article.getBoardId() == board.getId()) {
-				newArticles.add(article);
-			}
-		}
-
-		return newArticles;
-	}
+//	public List<Article> getArticlesByBoardCode(String code) {
+//		Board board = getBoardByCode(code);
+//		// free => 2
+//		// notice => 1
+//
+//		List<Article> articles = getArticles();
+//		List<Article> newArticles = new ArrayList<>();
+//
+//		for (Article article : articles) {
+//			if (article.getBoardId() == board.getId()) {
+//				newArticles.add(article);
+//			}
+//		}
+//
+//		return newArticles;
+//	}
 
 	public Member getMemberByLoginIdAndLoginPw(String loginId, String loginPw) {
 		List<Member> members = getMembers();
@@ -969,17 +1118,18 @@ class DB {
 		return tables.get("member").getRows();
 	}
 
-	public Board getBoardByCode(String code) {
-		List<Board> boards = getBoards();
-
-		for (Board board : boards) {
-			if (board.getCode().equals(code)) {
-				return board;
-			}
-		}
-
-		return null;
-	}
+//	public Board getBoardByCode(String code) {
+//		List<Board> boards = getBoards();
+//		
+//
+//		for (Board board : boards) {
+//			if (board.getCode().equals(code)) {
+//				return board;
+//			}
+//		}
+//
+//		return null;
+//	}
 
 	public List<Board> getBoards() {
 		return tables.get("board").getRows();
@@ -1147,14 +1297,19 @@ abstract class Dto {
 
 class Board extends Dto {
 	private String name;
-	private String code;
+	private int id;
 
 	public Board() {
 	}
 
-	public Board(String name, String code) {
+	public Board(String name, int id) {
 		this.name = name;
-		this.code = code;
+		this.id = id;
+	}
+
+	public Board(Map<String, Object> row) {
+		this.setName((String) row.get("boardName"));
+		this.setCode((int) (long) row.get("boardId"));
 	}
 
 	public String getName() {
@@ -1165,12 +1320,12 @@ class Board extends Dto {
 		this.name = name;
 	}
 
-	public String getCode() {
-		return code;
+	public int getCode() {
+		return id;
 	}
 
-	public void setCode(String code) {
-		this.code = code;
+	public void setCode(int id) {
+		this.id = id;
 	}
 
 }

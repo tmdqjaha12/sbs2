@@ -1,0 +1,126 @@
+body, ul li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/*  */
+.con {
+    width: 1000px;
+    margin: 0 auto;
+}
+
+.row::after {
+    content: "";
+    display: block;
+    clear: both;
+}
+
+.cell {
+    float: left;
+    box-sizing: border-box;
+}
+
+/*  */
+
+.top-bar > .menu-box-1 > ul {
+    background-color: #afafaf;
+    border-radius: 8px;
+    padding: 0 10px;
+}
+
+.top-bar > .menu-box-1 > ul > li {
+    text-align: center;
+    position: relative;
+    width: calc(100% / 4);
+}
+.top-bar > .menu-box-1 ul > li > a {
+    display: block;
+    padding: 10px;
+    font-weight: bold;
+}
+
+.top-bar > .menu-box-1 ul > li:hover > a {
+    background-color: black;
+    color: white;
+}
+
+.top-bar > .menu-box-1 > ul ul {
+    display: none;
+    position: absolute;
+    top: 100%;
+    width: 100%;
+    background-color: #afafaf;
+    padding: 0;
+}
+
+.top-bar > .menu-box-1 > ul > li:hover > ul {
+    display: block;
+}
+
+/*  */
+
+.menu-content {
+    background-color:  white;
+    border: 3px solid black;
+    
+}
+
+.menu-content > div:not(:last-child){
+    border-bottom: 1px dotted black;
+}
+
+.menu-content > div > a{
+    color: blue;
+}
+    
+
+/*  */
+
+.menu-content > div:nth-of-type(1), .menu-content > div:nth-of-type(2) {
+    background-color: navajowhite;
+}
+
+/*  */
+
+tr {
+    background-color: navajowhite;
+}
+
+tr > th{
+    background-color: thistle;
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+table td:not(:last-child){
+    text-align: center;
+}
+
+table {
+    width: 100%;
+}
+
+td > a {
+    color: blue;
+}
+
+td {
+    width: calc(100% / 4);
+}
+
+
+/* log */
+
+.log {
+    text-align: right;
+}
+
+.log * {
+    display: inline-block;
+}
